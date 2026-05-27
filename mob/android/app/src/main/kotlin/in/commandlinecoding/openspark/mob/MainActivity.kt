@@ -1,0 +1,5 @@
+package `in`.commandlinecoding.openspark.mob
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity : FlutterActivity()
