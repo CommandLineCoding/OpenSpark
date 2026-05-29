@@ -17,10 +17,21 @@ class AuthService {
     );
   }
 
+  Future<AuthResponse> signUpWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    return await _supabase.auth.signUp(
+      email: email,
+      password: password,
+    );
+  }
+
+  /// GitHub OAuth strategy configuration
   Future<bool> signInWithGitHub() async {
     return await _supabase.auth.signInWithOAuth(
       OAuthProvider.github,
-      redirectTo: 'openspark://login-callback',
+      redirectTo: 'openspark://auth/callback',
     );
   }
 

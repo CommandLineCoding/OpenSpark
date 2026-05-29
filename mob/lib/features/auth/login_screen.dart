@@ -17,43 +17,56 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _userIdController = TextEditingController();
-  final _authKeyController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   final _authService = AuthService();
 
-  int _selectedTabIndex = 0;
+  int _selectedTabIndex = 0; // 0 = INITIATE_SESSION, 1 = CREATE_NODE
   bool _isExecuting = false;
 
   @override
   void dispose() {
-    _userIdController.dispose();
-    _authKeyController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
-  Future<void> _handleEmailLogin() async {
+  Future<void> _handleTerminalExecution() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isExecuting = true);
     try {
-      await _authService.signInWithEmail(
-        email: _userIdController.text.trim(),
-        password: _authKeyController.text,
-      );
+      if (_selectedTabIndex == 0) {
+        // Run standard authentication sequence
+        await _authService.signInWithEmail(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+      } else {
+        // Run remote node creation sequence
+        await _authService.signUpWithEmail(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+        if (mounted) {
+          _showTerminalSuccess(
+            'Node created successfully. Check email for confirmation handshake.',
+          );
+          setState(() => _selectedTabIndex = 0); // Toggle back to login tab
+        }
+      }
     } on AuthException catch (e) {
       _showTerminalError(e.message);
     } catch (e) {
-      _showTerminalError('Fatal exception: Mainframe access denied.');
+      _showTerminalError('Fatal operational exception: Execution failed.');
     } finally {
       if (mounted) setState(() => _isExecuting = false);
     }
   }
 
-  Future<void> _handleOAuth(String provider) async {
+  Future<void> _handleOAuth() async {
     try {
-      if (provider == 'github') {
-        await _authService.signInWithGitHub();
-      }
+      await _authService.signInWithGitHub();
     } on AuthException catch (e) {
       _showTerminalError(e.message);
     } catch (e) {
@@ -70,6 +83,22 @@ class _LoginScreenState extends State<LoginScreen> {
           style: const TextStyle(
             fontFamily: 'JetBrains Mono',
             color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showTerminalSuccess(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: context.terminalColors.primary,
+        content: Text(
+          'SUCCESS: $message',
+          style: const TextStyle(
+            fontFamily: 'JetBrains Mono',
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
           ),
         ),
       ),
@@ -97,67 +126,92 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 32),
+
+                  // Section Tabs Selector
                   SessionTabs(
                     selectedIndex: _selectedTabIndex,
-                    onTabChanged: (index) =>
-                        setState(() => _selectedTabIndex = index),
+                    onTabChanged: (index) {
+                      _formKey.currentState?.reset();
+                      setState(() => _selectedTabIndex = index);
+                    },
                   ),
                   const SizedBox(height: 16),
+
+                  // Interactive Terminal Frame Block
                   TerminalCard(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Login_',
+                          _selectedTabIndex == 0 ? 'Login_' : 'Register_',
                           style: context.terminalText.headlineMedium,
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Enter credentials to access mainframe.',
+                          _selectedTabIndex == 0
+                              ? 'Enter credentials to access mainframe.'
+                              : 'Provision a new identity node onto the matrix.',
                           style: context.terminalText.bodyMedium,
                         ),
                         const SizedBox(height: 24),
+
                         TerminalTextField(
-                          label: 'user_id',
-                          prefixIcon: Icons.account_box_outlined,
-                          hintText: 'root_admin',
-                          controller: _userIdController,
-                          validator: (val) => val!.isEmpty
-                              ? 'Field execution criteria unfulfilled'
-                              : null,
+                          label: 'user_email',
+                          prefixIcon: Icons.alternate_email_rounded,
+                          hintText: 'root@openspark.dev',
+                          controller: _emailController,
+                          validator: (val) {
+                            if (val == null ||
+                                val.isEmpty ||
+                                !val.contains('@')) {
+                              return 'Criteria missing: Invalid core email sequence';
+                            }
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 20),
+
                         TerminalTextField(
                           label: 'auth_key',
                           prefixIcon: Icons.vpn_key_outlined,
                           hintText: '********',
                           obscureText: true,
-                          controller: _authKeyController,
-                          validator: (val) => val!.length < 6
-                              ? 'Bounds violation: Minimum length 6'
-                              : null,
+                          controller: _passwordController,
+                          validator: (val) {
+                            if (val == null || val.length < 6) {
+                              return 'Bounds violation: Minimum key length 6';
+                            }
+                            return null;
+                          },
                         ),
-                        const SizedBox(height: 16),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: () {},
-                            child: Text(
-                              'recover_key?',
-                              style: context.terminalText.labelLarge,
+
+                        if (_selectedTabIndex == 0) ...[
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: () {},
+                              child: Text(
+                                'recover_key?',
+                                style: context.terminalText.labelLarge,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 16),
+                          const SizedBox(height: 8),
+                        ] else ...[
+                          const SizedBox(height: 32),
+                        ],
+
                         ExecuteButton(
                           label: 'Execute',
                           isLoading: _isExecuting,
-                          onPressed: _handleEmailLogin,
+                          onPressed: _handleTerminalExecution,
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 24),
+
+                  // Structural Delineator Row
                   Row(
                     children: [
                       Expanded(
@@ -178,21 +232,15 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                   const SizedBox(height: 24),
+
+                  // Unified single-action GitHub button container
                   Row(
                     children: [
                       Expanded(
                         child: SocialAuthButton(
-                          label: 'GitHub',
+                          label: 'GitHub Mainframe',
                           icon: Icons.terminal_outlined,
-                          onPressed: () => _handleOAuth('github'),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: SocialAuthButton(
-                          label: 'Google',
-                          icon: Icons.stream,
-                          onPressed: () => _handleOAuth('google'),
+                          onPressed: _handleOAuth,
                         ),
                       ),
                     ],
