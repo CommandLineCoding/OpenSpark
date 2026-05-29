@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../design_system/theme_extensions.dart';
 import '../sparks/sparks_feed_screen.dart';
 import 'navigation_provider.dart';
+import '../profile/profile_screen.dart';
 
 class MainShell extends ConsumerWidget {
   const MainShell({super.key});
@@ -19,9 +20,7 @@ class MainShell extends ConsumerWidget {
       const _PlaceholderScreen(
         title: '~/COLLABORATORS_NETWORK_MATRIX',
       ), // Tab 2: Subdued Placeholder
-      const _PlaceholderScreen(
-        title: '~/OPERATOR_SETTINGS_SPACE',
-      ), // Tab 3: Subdued Placeholder
+      const ProfileScreen(),
     ];
 
     return Scaffold(

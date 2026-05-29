@@ -1,77 +1,68 @@
+import 'package:OpenSpark/features/dashboard/main_shell.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'design_system/app_theme.dart';
 import 'environment.dart';
+import 'features/auth/auth_provider.dart';
+import 'features/auth/login_screen.dart';
+import 'features/dashboard/dashboard_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  Environment.validate(); // ensure keys
+  // Validate environmental configurations
+  Environment.validate();
 
+  // Initialize the Supabase backend configuration globally
   await Supabase.initialize(
     url: Environment.supabaseUrl,
     anonKey: Environment.supabaseAnonKey,
+    authOptions: const FlutterAuthClientOptions(
+      authFlowType: AuthFlowType.pkce,
+    ),
   );
 
-  runApp(const MyApp());
+  runApp(const ProviderScope(child: MyApp()));
 }
 
-class MyApp extends StatelessWidget { // main -- router etc
+class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authStateAsync = ref.watch(authStateProvider);
+
     return MaterialApp(
-      title: 'OpenSpark',
-      theme: ThemeData(
-        colorScheme: .fromSeed(seedColor: Colors.teal, brightness: Brightness.dark),
-      ),
-      home: const MyHomePage(title: 'OpenSpark'),
-      // other pages to be added;
-    );
-  }
-}
-
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      _counter--;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text(widget.title),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: .center,
-          children: [
-            const Text('Suman Biswas is here'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+      title: 'OpenSpark Mainframe',
+      debugShowCheckedModeBanner: false,
+      themeMode: ThemeMode.dark,
+      darkTheme: AppTheme.darkTheme,
+      home: authStateAsync.when(
+        data: (state) {
+          // If a session exists securely, transition deep inside the application main dashboard
+          if (state.session != null) {
+            return const MainShell();
+          }
+          // Otherwise, direct the operator straight onto the gate login viewport
+          return const LoginScreen();
+        },
+        loading: () => const Scaffold(
+          body: Center(
+            child: CircularProgressIndicator(color: Color(0xFF39D353)),
+          ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
+        error: (err, stack) => Scaffold(
+          body: Center(
+            child: Text(
+              'CRITICAL_AUTH_ERROR: $err',
+              style: const TextStyle(
+                fontFamily: 'JetBrains Mono',
+                color: Colors.redAccent,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
