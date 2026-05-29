@@ -1,4 +1,4 @@
-# mob
+# OpenSpark
 
 A new Flutter project.
 
