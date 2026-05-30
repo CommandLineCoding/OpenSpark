@@ -174,7 +174,7 @@ class SparksFeedScreen extends ConsumerWidget {
             // --- CORE FEED LIST ---
             sparksAsync.when(
               data: (sparks) {
-                if (sparks.isEmpty)
+                if (sparks.isEmpty) {
                   return const Center(
                     child: Padding(
                       padding: EdgeInsets.only(top: 40.0),
@@ -187,6 +187,7 @@ class SparksFeedScreen extends ConsumerWidget {
                       ),
                     ),
                   );
+                }
 
                 return ListView.builder(
                   shrinkWrap: true,

@@ -40,13 +40,14 @@ class _SparkDetailScreenState extends ConsumerState<SparkDetailScreen> {
             content: text,
           );
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: Colors.redAccent,
             content: Text('TRANSMISSION_DROP: ${e.toString()}'),
           ),
         );
+      }
     }
   }
 
@@ -227,7 +228,7 @@ class _SparkDetailScreenState extends ConsumerState<SparkDetailScreen> {
 
                   commentsAsync.when(
                     data: (comments) {
-                      if (comments.isEmpty)
+                      if (comments.isEmpty) {
                         return const Padding(
                           padding: EdgeInsets.symmetric(vertical: 32.0),
                           child: Center(
@@ -243,6 +244,7 @@ class _SparkDetailScreenState extends ConsumerState<SparkDetailScreen> {
                             ),
                           ),
                         );
+                      }
                       return ListView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),

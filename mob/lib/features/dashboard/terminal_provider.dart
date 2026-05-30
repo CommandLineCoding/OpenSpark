@@ -49,8 +49,9 @@ class TerminalNotifier extends Notifier<List<TerminalLine>> {
     String? activeSparkContext,
   }) async {
     if (input.trim().isEmpty) return;
-    if (ref.read(terminalProcessingProvider))
+    if (ref.read(terminalProcessingProvider)) {
       return; // Prevent spamming while thinking
+    }
 
     final time = DateFormat('HH:mm:ss').format(DateTime.now());
 

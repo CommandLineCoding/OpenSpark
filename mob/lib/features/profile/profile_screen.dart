@@ -460,7 +460,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         ),
                         const Divider(color: Color(0xFF21262D), height: 1),
                         SwitchListTile(
-                          activeColor: Colors.black,
+                          activeThumbColor: Colors.black,
                           activeTrackColor: context.terminalColors.primary,
                           inactiveThumbColor: const Color(0xFF8B949E),
                           inactiveTrackColor: const Color(0xFF161B22),

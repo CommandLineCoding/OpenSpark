@@ -1,4 +1,4 @@
-import 'package:OpenSpark/features/dashboard/dashboard_screen.dart';
+import 'package:open_spark/features/dashboard/dashboard_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../design_system/theme_extensions.dart';
@@ -112,30 +112,6 @@ class MainShell extends ConsumerWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PlaceholderScreen extends StatelessWidget {
-  final String title;
-  const _PlaceholderScreen({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<TerminalColors>();
-    return Scaffold(
-      backgroundColor: colors?.neutralBg ?? const Color(0xFF0D1117),
-      body: Center(
-        child: Text(
-          title,
-          style: TextStyle(
-            fontFamily: 'JetBrains Mono',
-            color: colors?.primary ?? const Color(0xFF39D353),
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-          ),
         ),
       ),
     );

@@ -1,4 +1,4 @@
-import 'package:OpenSpark/features/dashboard/main_shell.dart';
+import 'package:open_spark/features/dashboard/main_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -6,7 +6,6 @@ import 'design_system/app_theme.dart';
 import 'environment.dart';
 import 'features/auth/auth_provider.dart';
 import 'features/auth/login_screen.dart';
-import 'features/dashboard/dashboard_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
