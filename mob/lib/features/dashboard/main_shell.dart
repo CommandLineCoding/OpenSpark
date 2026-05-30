@@ -4,6 +4,7 @@ import '../../design_system/theme_extensions.dart';
 import '../sparks/sparks_feed_screen.dart';
 import 'navigation_provider.dart';
 import '../profile/profile_screen.dart';
+import '../collab/collab_screen.dart';
 
 class MainShell extends ConsumerWidget {
   const MainShell({super.key});
@@ -13,13 +14,11 @@ class MainShell extends ConsumerWidget {
     final currentNavIndex = ref.watch(navigationIndexProvider);
 
     final List<Widget> systemScreens = [
-      const SparksFeedScreen(), // Tab 0: Primary Mainframe Focus
+      const SparksFeedScreen(),
       const _PlaceholderScreen(
         title: '~/TERMINAL_MONITOR_DASHBOARD',
       ), // Tab 1: Subdued Placeholder
-      const _PlaceholderScreen(
-        title: '~/COLLABORATORS_NETWORK_MATRIX',
-      ), // Tab 2: Subdued Placeholder
+      const CollabScreen(),
       const ProfileScreen(),
     ];
 
