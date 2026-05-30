@@ -1,115 +1,123 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../auth/auth_provider.dart';
 import 'sparks_service.dart';
 
+final sparksServiceProvider = Provider((ref) => SparksService());
+
 class SparkModel {
-  final String id;
-  final String title;
-  final String description;
+  final String id,
+      title,
+      description,
+      status,
+      timeAgo,
+      authorName,
+      authorAvatar;
   final List<String> techStack;
-  final String status;
   final int upvotes;
-  final String timeAgo;
-  final String authorName;
-  final String authorAvatar;
   final bool isUpvotedByMe;
 
-  const SparkModel({
+  SparkModel({
     required this.id,
     required this.title,
     required this.description,
     required this.techStack,
     required this.status,
-    required this.upvotes,
     required this.timeAgo,
+    required this.upvotes,
+    required this.isUpvotedByMe,
     required this.authorName,
     required this.authorAvatar,
-    required this.isUpvotedByMe,
   });
 
-  SparkModel copyWith({int? upvotes, bool? isUpvotedByMe}) {
+  SparkModel copyWith({
+    String? id,
+    String? title,
+    String? description,
+    List<String>? techStack,
+    String? status,
+    String? timeAgo,
+    int? upvotes,
+    bool? isUpvotedByMe,
+    String? authorName,
+    String? authorAvatar,
+  }) {
     return SparkModel(
-      id: id,
-      title: title,
-      description: description,
-      techStack: techStack,
-      status: status,
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      techStack: techStack ?? this.techStack,
+      status: status ?? this.status,
+      timeAgo: timeAgo ?? this.timeAgo,
       upvotes: upvotes ?? this.upvotes,
-      timeAgo: timeAgo,
-      authorName: authorName,
-      authorAvatar: authorAvatar,
       isUpvotedByMe: isUpvotedByMe ?? this.isUpvotedByMe,
+      authorName: authorName ?? this.authorName,
+      authorAvatar: authorAvatar ?? this.authorAvatar,
     );
   }
 }
 
-final sparksServiceProvider = Provider((ref) => SparksService());
-
-final sparksFeedProvider = AsyncNotifierProvider<SparksFeedNotifier, List<SparkModel>>(() {
-  return SparksFeedNotifier();
-});
-
 class SparksFeedNotifier extends AsyncNotifier<List<SparkModel>> {
-  late final SparksService _service;
-
   @override
   Future<List<SparkModel>> build() async {
-    _service = ref.watch(sparksServiceProvider);
-    return _fetchAllData();
-  }
+    final service = ref.watch(sparksServiceProvider);
+    final currentUser = ref.watch(currentUserProvider);
 
-  Future<List<SparkModel>> _fetchAllData() async {
-    final user = ref.read(currentUserProvider);
-    final rawSparks = await _service.fetchSparks();
-    
-    Set<String> userVotes = {};
-    if (user != null) {
-      userVotes = await _service.fetchUserVotes(user.id);
-    }
+    // 1. Fetch raw sparks from your RPC-backed schema
+    final rawSparks = await service.fetchSparks();
+
+    // 2. Fetch active user's vote set for mapping
+    final myVotes = currentUser != null
+        ? await service.fetchUserVotes(currentUser.id)
+        : <String>{};
 
     return rawSparks.map((data) {
-      final profile = data['profiles'] as Map<String, dynamic>?;
-      final createdAt = DateTime.tryParse(data['created_at'] ?? '') ?? DateTime.now();
-      final difference = DateTime.now().difference(createdAt);
-      
-      String timeAgo = '${difference.inMinutes}m ago';
-      if (difference.inHours > 0) timeAgo = '${difference.inHours}h ago';
-      if (difference.inDays > 0) timeAgo = '${difference.inDays}d ago';
+      final authorData = data['profiles'] as Map<String, dynamic>?;
+
+      final createdAt = DateTime.parse(data['created_at'].toString());
+      final diff = DateTime.now().difference(createdAt);
+      String timeAgo = '${diff.inMinutes}m ago';
+      if (diff.inHours > 0) timeAgo = '${diff.inHours}h ago';
+      if (diff.inDays > 0) timeAgo = '${diff.inDays}d ago';
 
       return SparkModel(
         id: data['id'].toString(),
-        title: data['title'] ?? 'Untitled Spark',
-        description: data['description_markdown'] ?? '',
-        // Securely handle both direct array types or comma fallback streams from postgres selection
-        techStack: data['tech_stack'] is List 
-            ? List<String>.from(data['tech_stack'])
-            : (data['tech_stack']?.toString().split(',') ?? []),
-        status: data['status'] ?? 'seed',
-        upvotes: data['upvotes'] ?? 0,
+        title: data['title']?.toString() ?? 'Untitled Blueprint',
+        // Maps to your specific description_markdown column
+        description:
+            data['description_markdown']?.toString() ??
+            data['description']?.toString() ??
+            '',
+        techStack: List<String>.from(data['tech_stack'] ?? []),
+        status: data['status']?.toString() ?? 'seed',
         timeAgo: timeAgo,
-        authorName: profile?['username'] ?? 'anonymous_node',
-        authorAvatar: profile?['avatar_url'] ?? 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
-        isUpvotedByMe: userVotes.contains(data['id'].toString()),
+        upvotes: data['upvotes'] as int? ?? 0,
+        isUpvotedByMe: myVotes.contains(data['id'].toString()),
+        authorName: authorData?['username']?.toString() ?? 'anonymous',
+        authorAvatar:
+            authorData?['avatar_url']?.toString() ??
+            'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
       );
     }).toList();
   }
 
   Future<void> refreshFeed() async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() => _fetchAllData());
+    state = await AsyncValue.guard(() => build());
   }
 
-  Future<String?> toggleVoteOptimistic(String sparkId) async {
-    final previousState = state.value;
-    if (previousState == null) return null;
+  Future<void> toggleVoteOptimistic(String sparkId) async {
+    final oldState = state.value;
+    if (oldState == null) return;
 
+    // Instant UI update
     state = AsyncValue.data(
-      previousState.map((spark) {
+      oldState.map((spark) {
         if (spark.id == sparkId) {
-          final isUpvoted = !spark.isUpvotedByMe;
+          final change = spark.isUpvotedByMe ? -1 : 1;
           return spark.copyWith(
-            isUpvotedByMe: isUpvoted,
-            upvotes: isUpvoted ? spark.upvotes + 1 : spark.upvotes - 1,
+            upvotes: spark.upvotes + change,
+            isUpvotedByMe: !spark.isUpvotedByMe,
           );
         }
         return spark;
@@ -117,11 +125,50 @@ class SparksFeedNotifier extends AsyncNotifier<List<SparkModel>> {
     );
 
     try {
-      await _service.toggleVoteRpc(sparkId);
-      return null;
+      // Execute your specific RPC backend function
+      await ref.read(sparksServiceProvider).toggleVoteRpc(sparkId);
     } catch (e) {
-      state = AsyncValue.data(previousState);
-      return e.toString();
+      state = AsyncValue.data(oldState); // Rollback on drop
     }
   }
 }
+
+final sparksFeedProvider =
+    AsyncNotifierProvider<SparksFeedNotifier, List<SparkModel>>(
+      () => SparksFeedNotifier(),
+    );
+
+// --- Comments Matrix ---
+class SparkCommentModel {
+  final String id, sparkId, authorName, content, timeAgo;
+  SparkCommentModel({
+    required this.id,
+    required this.sparkId,
+    required this.authorName,
+    required this.content,
+    required this.timeAgo,
+  });
+}
+
+final sparkCommentsStreamProvider =
+    StreamProvider.family<List<SparkCommentModel>, String>((ref, sparkId) {
+      final supabase = ref.watch(supabaseClientProvider);
+      return supabase
+          .from('spark_comments')
+          .stream(primaryKey: ['id'])
+          .eq('spark_id', sparkId)
+          .order('created_at', ascending: true)
+          .map((snapshot) {
+            return snapshot
+                .map(
+                  (data) => SparkCommentModel(
+                    id: data['id'].toString(),
+                    sparkId: data['spark_id'].toString(),
+                    authorName: 'peer_node',
+                    content: data['content'].toString(),
+                    timeAgo: 'Just now',
+                  ),
+                )
+                .toList();
+          });
+    });

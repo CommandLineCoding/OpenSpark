@@ -9,20 +9,19 @@ import 'sparks_provider.dart';
 class SparksFeedScreen extends ConsumerWidget {
   const SparksFeedScreen({super.key});
 
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'ignited':
-        return const Color(0xFF39D353);
-      case 'sprout':
-        return const Color(0xFFFFBD2E);
-      default:
-        return const Color(0xFF8B949E);
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sparksAsync = ref.watch(sparksFeedProvider);
+
+    // --- DYNAMIC TELEMETRY CALCULATION ---
+    // Extracts the real-time data from the provider to power the top dashboard
+    final activeNodesCount = sparksAsync.valueOrNull?.length ?? 0;
+    final totalNetworkVotes =
+        sparksAsync.valueOrNull?.fold<int>(
+          0,
+          (sum, spark) => sum + spark.upvotes,
+        ) ??
+        0;
 
     return Scaffold(
       backgroundColor: context.terminalColors.neutralBg,
@@ -42,20 +41,17 @@ class SparksFeedScreen extends ConsumerWidget {
             color: context.terminalColors.primary,
             fontWeight: FontWeight.bold,
             fontSize: 22,
-            letterSpacing: 0.5,
           ),
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.add_box_outlined, color: Colors.white),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const CreateSparkScreen(),
-                ),
-              );
-            },
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const CreateSparkScreen(),
+              ),
+            ),
           ),
           const SizedBox(width: 8),
         ],
@@ -64,321 +60,280 @@ class SparksFeedScreen extends ConsumerWidget {
           child: Divider(color: Color(0xFF21262D), height: 1),
         ),
       ),
-      body: sparksAsync.when(
-        data: (sparks) {
-          return RefreshIndicator(
-            color: context.terminalColors.primary,
-            backgroundColor: const Color(0xFF0D1117),
-            onRefresh: () =>
-                ref.read(sparksFeedProvider.notifier).refreshFeed(),
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: sparks.length + 1,
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 16.0),
-                    child: TerminalBlock(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Latest Sparks',
-                                style: context.terminalText.headlineMedium
-                                    ?.copyWith(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                              ),
-                              Row(
-                                children: [
-                                  Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFF39D353),
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  const Text(
-                                    'SYS_ONLINE',
-                                    style: TextStyle(
-                                      fontFamily: 'JetBrains Mono',
-                                      fontSize: 12,
-                                      color: Color(0xFF8B949E),
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF0D1117),
-                                    border: Border.all(
-                                      color: const Color(0xFF30363D),
-                                    ),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'ACTIVE_NODES',
-                                        style: TextStyle(
-                                          fontFamily: 'JetBrains Mono',
-                                          fontSize: 11,
-                                          color: Color(0xFF8B949E),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        '${sparks.length}',
-                                        style: const TextStyle(
-                                          fontFamily: 'JetBrains Mono',
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFF39D353),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF0D1117),
-                                    border: Border.all(
-                                      color: const Color(0xFF30363D),
-                                    ),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'ERRORS',
-                                        style: TextStyle(
-                                          fontFamily: 'JetBrains Mono',
-                                          fontSize: 11,
-                                          color: Color(0xFF8B949E),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      const Text(
-                                        '0',
-                                        style: TextStyle(
-                                          fontFamily: 'JetBrains Mono',
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.redAccent,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+      body: RefreshIndicator(
+        color: context.terminalColors.primary,
+        backgroundColor: const Color(0xFF0D1117),
+        onRefresh: () => ref.read(sparksFeedProvider.notifier).refreshFeed(),
+        child: ListView(
+          padding: const EdgeInsets.all(16.0),
+          children: [
+            // Top Telemetry Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Latest Sparks',
+                  style: TextStyle(
+                    fontFamily: 'JetBrains Mono',
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 24,
+                  ),
+                ),
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF39D353),
+                        shape: BoxShape.circle,
                       ),
                     ),
-                  );
-                }
+                    const SizedBox(width: 6),
+                    const Text(
+                      'SYS_ONLINE',
+                      style: TextStyle(
+                        fontFamily: 'JetBrains Mono',
+                        fontSize: 11,
+                        color: Color(0xFF8B949E),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
 
-                final spark = sparks[index - 1];
-                final displayId = spark.id.length > 4
-                    ? spark.id.substring(0, 4)
-                    : spark.id;
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 14.0),
+            // --- DYNAMIC TELEMETRY DASHBOARD ---
+            Row(
+              children: [
+                Expanded(
                   child: TerminalBlock(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
+                        const Text(
+                          'ACTIVE_NODES',
+                          style: TextStyle(
+                            fontFamily: 'JetBrains Mono',
+                            fontSize: 11,
+                            color: Color(0xFF8B949E),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '$activeNodesCount',
+                          style: TextStyle(
+                            fontFamily: 'JetBrains Mono',
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: context.terminalColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TerminalBlock(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'NETWORK_VOTES',
+                          style: TextStyle(
+                            fontFamily: 'JetBrains Mono',
+                            fontSize: 11,
+                            color: Color(0xFF8B949E),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '$totalNetworkVotes',
+                          // Changed from red to terminal yellow to represent engagement energy
+                          style: const TextStyle(
+                            fontFamily: 'JetBrains Mono',
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFFFBD2E),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // --- CORE FEED LIST ---
+            sparksAsync.when(
+              data: (sparks) {
+                if (sparks.isEmpty)
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.only(top: 40.0),
+                      child: Text(
+                        'NO_ACTIVE_IDEAS_FOUND',
+                        style: TextStyle(
+                          fontFamily: 'JetBrains Mono',
+                          color: Color(0xFF8B949E),
+                        ),
+                      ),
+                    ),
+                  );
+
+                return ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: sparks.length,
+                  itemBuilder: (context, idx) {
+                    final spark = sparks[idx];
+                    final displayId = spark.id.length > 4
+                        ? spark.id.substring(0, 4).toUpperCase()
+                        : spark.id.toUpperCase();
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: TerminalBlock(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(
-                              Icons.flash_on_rounded,
-                              color: context.terminalColors.primary,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
+                            // Title & Tag Matrix
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.bolt,
+                                  color: context.terminalColors.primary,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
                                     spark.title,
-                                    style: context.terminalText.bodyMedium
-                                        ?.copyWith(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                        ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'ID: SPK-${displayId.toUpperCase()}',
                                     style: const TextStyle(
                                       fontFamily: 'JetBrains Mono',
-                                      fontSize: 12,
-                                      color: Color(0xFF8B949E),
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF161B22),
-                                border: Border.all(
-                                  color: _getStatusColor(spark.status),
                                 ),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
+                                const SizedBox(width: 8),
+                                _buildStatusTag(spark.status, context),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            // Clean ID Tracker under title
+                            Padding(
+                              padding: const EdgeInsets.only(left: 28.0),
                               child: Text(
-                                spark.status.toUpperCase(),
-                                style: TextStyle(
+                                'ID: SPK-$displayId',
+                                style: const TextStyle(
                                   fontFamily: 'JetBrains Mono',
-                                  fontSize: 11,
-                                  color: _getStatusColor(spark.status),
-                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF8B949E),
+                                  fontSize: 12,
                                 ),
                               ),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
+                            const SizedBox(height: 16),
 
-                        if (spark.description.isNotEmpty) ...[
-                          Text(
-                            spark.description,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Color(0xFFC9D1D9),
-                              fontSize: 14,
-                              height: 1.4,
+                            Text(
+                              spark.description,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFFC9D1D9),
+                                fontSize: 14,
+                                height: 1.4,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                        ],
+                            const SizedBox(height: 16),
 
-                        if (spark.techStack.isNotEmpty) ...[
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 6,
-                            children: spark.techStack.map((tech) {
-                              return Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF161B22),
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(
-                                    color: const Color(0xFF30363D),
-                                  ),
-                                ),
-                                child: Text(
-                                  tech,
-                                  style: const TextStyle(
-                                    fontFamily: 'JetBrains Mono',
-                                    fontSize: 11,
-                                    color: Color(0xFF8B949E),
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                          const SizedBox(height: 14),
-                        ],
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: spark.techStack
+                                  .map(
+                                    (tech) => Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF161B22),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(
+                                          color: const Color(0xFF30363D),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        tech,
+                                        style: const TextStyle(
+                                          fontFamily: 'JetBrains Mono',
+                                          fontSize: 11,
+                                          color: Color(0xFF8B949E),
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                            const SizedBox(height: 20),
 
-                        const Text(
-                          '. . . . . . . . . . . . . . . . . . . . . . . .',
-                          style: TextStyle(
-                            color: Color(0xFF30363D),
-                            letterSpacing: 2,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
+                            // Brutalist Dotted Line
+                            const Text(
+                              '. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .',
+                              style: TextStyle(
+                                color: Color(0xFF30363D),
+                                fontSize: 14,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.clip,
+                            ),
+                            const SizedBox(height: 16),
 
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
+                            // Interaction Footer
                             Row(
                               children: [
                                 const Icon(
-                                  Icons.access_time,
+                                  Icons.access_time_rounded,
                                   size: 14,
                                   color: Color(0xFF8B949E),
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
                                   spark.timeAgo,
-                                  style: context.terminalText.labelLarge
-                                      ?.copyWith(fontSize: 12),
+                                  style: const TextStyle(
+                                    fontFamily: 'JetBrains Mono',
+                                    color: Color(0xFF8B949E),
+                                    fontSize: 12,
+                                  ),
                                 ),
-                              ],
-                            ),
-                            Row(
-                              children: [
-                                InkWell(
-                                  onTap: () async {
-                                    final error = await ref
-                                        .read(sparksFeedProvider.notifier)
-                                        .toggleVoteOptimistic(spark.id);
+                                const Spacer(),
 
-                                    if (error != null && context.mounted) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          backgroundColor: Colors.redAccent,
-                                          content: Text(
-                                            'VOTE_TRANSMISSION_FAILED: $error',
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                  },
+                                InkWell(
+                                  onTap: () => ref
+                                      .read(sparksFeedProvider.notifier)
+                                      .toggleVoteOptimistic(spark.id),
                                   borderRadius: BorderRadius.circular(4),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 6,
+                                      horizontal: 12,
+                                      vertical: 8,
                                     ),
                                     decoration: BoxDecoration(
                                       color: spark.isUpvotedByMe
                                           ? context.terminalColors.primary
-                                                .withValues(alpha: 0.15)
-                                          : const Color(0xFF0D1117),
+                                                .withAlpha(25)
+                                          : const Color(0xFF161B22),
                                       border: Border.all(
                                         color: spark.isUpvotedByMe
                                             ? context.terminalColors.primary
@@ -390,12 +345,12 @@ class SparksFeedScreen extends ConsumerWidget {
                                       children: [
                                         Icon(
                                           Icons.arrow_drop_up_rounded,
+                                          size: 20,
                                           color: spark.isUpvotedByMe
                                               ? context.terminalColors.primary
                                               : const Color(0xFF8B949E),
-                                          size: 20,
                                         ),
-                                        const SizedBox(width: 2),
+                                        const SizedBox(width: 4),
                                         Text(
                                           '${spark.upvotes}',
                                           style: TextStyle(
@@ -411,26 +366,24 @@ class SparksFeedScreen extends ConsumerWidget {
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 8),
+                                const SizedBox(width: 10),
 
                                 InkWell(
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            SparkDetailScreen(spark: spark),
-                                      ),
-                                    );
-                                  },
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          SparkDetailScreen(spark: spark),
+                                    ),
+                                  ),
                                   borderRadius: BorderRadius.circular(4),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 8,
+                                      horizontal: 16,
+                                      vertical: 10,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF21262D),
+                                      color: const Color(0xFF161B22),
                                       border: Border.all(
                                         color: const Color(0xFF30363D),
                                       ),
@@ -440,9 +393,9 @@ class SparksFeedScreen extends ConsumerWidget {
                                       'INSPECT',
                                       style: TextStyle(
                                         fontFamily: 'JetBrains Mono',
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
+                                        fontSize: 11,
                                         color: Color(0xFF39D353),
+                                        fontWeight: FontWeight.bold,
                                       ),
                                     ),
                                   ),
@@ -451,25 +404,66 @@ class SparksFeedScreen extends ConsumerWidget {
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
+                    );
+                  },
                 );
               },
+              loading: () => const Center(
+                child: Padding(
+                  padding: EdgeInsets.only(top: 40.0),
+                  child: CircularProgressIndicator(color: Color(0xFF39D353)),
+                ),
+              ),
+              error: (err, _) => Center(
+                child: Text(
+                  'MATRIX_FETCH_FAULT: $err',
+                  style: const TextStyle(
+                    fontFamily: 'JetBrains Mono',
+                    color: Colors.redAccent,
+                  ),
+                ),
+              ),
             ),
-          );
-        },
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: Color(0xFF39D353)),
+          ],
         ),
-        error: (err, stack) => Center(
-          child: Text(
-            'LOG_FETCH_EXCEPTION: $err',
-            style: const TextStyle(
-              fontFamily: 'JetBrains Mono',
-              color: Colors.redAccent,
-            ),
-          ),
+      ),
+    );
+  }
+
+  Widget _buildStatusTag(String status, BuildContext context) {
+    Color tagColor;
+    Color textColor;
+    String text = status.toUpperCase();
+    switch (status.toLowerCase()) {
+      case 'sprout':
+        tagColor = const Color(0xFFFFBD2E).withAlpha(35);
+        textColor = const Color(0xFFFFBD2E);
+        break;
+      case 'ignited':
+        tagColor = const Color(0xFF39D353).withAlpha(35);
+        textColor = const Color(0xFF39D353);
+        break;
+      case 'seed':
+      default:
+        tagColor = const Color(0xFF21262D);
+        textColor = const Color(0xFF8B949E);
+        text = 'SEED';
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: tagColor,
+        border: Border.all(color: textColor.withAlpha(120)),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontFamily: 'JetBrains Mono',
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: textColor,
         ),
       ),
     );

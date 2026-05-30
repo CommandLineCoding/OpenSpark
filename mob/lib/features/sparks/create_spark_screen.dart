@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../design_system/theme_extensions.dart';
-import '../../design_system/widgets/execute_button.dart';
-import '../../design_system/widgets/terminal_card.dart';
-import '../../design_system/widgets/terminal_text_field.dart';
+import '../../design_system/widgets/terminal_block.dart';
 import '../auth/auth_provider.dart';
-
 import 'sparks_provider.dart';
 
 class CreateSparkScreen extends ConsumerStatefulWidget {
@@ -16,88 +13,60 @@ class CreateSparkScreen extends ConsumerStatefulWidget {
 }
 
 class _CreateSparkScreenState extends ConsumerState<CreateSparkScreen> {
-  final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
-  final _descriptionController = TextEditingController();
+  final _descController = TextEditingController();
   final _techController = TextEditingController();
-  bool _isSubmitting = false;
+  bool _isPublishing = false;
 
   @override
   void dispose() {
     _titleController.dispose();
-    _descriptionController.dispose();
+    _descController.dispose();
     _techController.dispose();
     super.dispose();
   }
 
-  Future<void> _handleSubmitNode() async {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _publishSpark() async {
+    final title = _titleController.text.trim();
+    final desc = _descController.text.trim();
+    final tech = _techController.text.trim();
 
-    final user = ref.read(currentUserProvider);
-    if (user == null) {
-      _showTerminalMessage(
-        'AUTH_FAILURE: Session operator not resolved.',
-        isError: true,
-      );
-      return;
-    }
-
-    setState(() => _isSubmitting = true);
-
-    // Parse comma-delimited strings into individual trimmed text tokens
-    final techList = _techController.text
-        .split(',')
-        .map((tech) => tech.trim())
-        .where((tech) => tech.isNotEmpty)
-        .toList();
+    if (title.isEmpty || desc.isEmpty) return;
+    setState(() => _isPublishing = true);
 
     try {
+      final currentUser = ref.read(currentUserProvider);
+      if (currentUser == null) throw Exception('No active session token');
+
+      final techList = tech.isEmpty
+          ? <String>[]
+          : tech
+                .split(',')
+                .map((e) => e.trim())
+                .where((e) => e.isNotEmpty)
+                .toList();
       await ref
           .read(sparksServiceProvider)
           .insertSpark(
-            title: _titleController.text.trim(),
-            description: _descriptionController.text.trim(),
+            title: title,
+            description: desc,
             techStack: techList,
-            authorId: user.id,
+            authorId: currentUser.id,
           );
 
-      _showTerminalMessage(
-        'TRANSMISSION_COMPLETE: Blueprint deployed to grid.',
-      );
-
-      // Force reload the feed provider state data
-      await ref.read(sparksFeedProvider.notifier).refreshFeed();
-
-      if (mounted) {
-        Navigator.pop(context);
-      }
+      ref.read(sparksFeedProvider.notifier).refreshFeed();
+      if (mounted) Navigator.pop(context);
     } catch (e) {
-      _showTerminalMessage(
-        'DATABASE_REJECTION: ${e.toString()}',
-        isError: true,
-      );
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
-    }
-  }
-
-  void _showTerminalMessage(String message, {bool isError = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: isError
-            ? Colors.redAccent
-            : context.terminalColors.primary,
-        content: Text(
-          message,
-          style: TextStyle(
-            fontFamily: 'JetBrains Mono',
-            color: isError ? Colors.white : Colors.black,
-            fontWeight: FontWeight.bold,
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.redAccent,
+            content: Text('PUBLISH_ERR: ${e.toString()}'),
           ),
-        ),
-      ),
-    );
+        );
+        setState(() => _isPublishing = false);
+      }
+    }
   }
 
   @override
@@ -107,9 +76,13 @@ class _CreateSparkScreenState extends ConsumerState<CreateSparkScreen> {
       appBar: AppBar(
         backgroundColor: context.terminalColors.neutralBg,
         elevation: 0,
-        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        centerTitle: true,
         title: Text(
-          '// deploy_blueprint',
+          'Initialize Spark',
           style: TextStyle(
             fontFamily: 'JetBrains Mono',
             color: context.terminalColors.primary,
@@ -122,130 +95,171 @@ class _CreateSparkScreenState extends ConsumerState<CreateSparkScreen> {
           child: Divider(color: Color(0xFF21262D), height: 1),
         ),
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Form(
-            key: _formKey,
-            child: TerminalCard(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TerminalBlock(
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Compile Node_',
-                    style: context.terminalText.headlineMedium,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Fill code specs to provision an open spark entry.',
-                    style: context.terminalText.bodyMedium,
-                  ),
-                  const SizedBox(height: 24),
-
-                  TerminalTextField(
-                    label: 'spark_title',
-                    prefixIcon: Icons.title_rounded,
-                    hintText: 'e.g., Hyper_UI_Engine',
-                    controller: _titleController,
-                    validator: (val) {
-                      if (val == null ||
-                          val.trim().length < 5 ||
-                          val.trim().length > 200) {
-                        return 'Bounds error: Title bounds must span [5, 200] items.';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Customized multi-line block directly utilizing system input tokens
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.description_outlined,
-                        size: 14,
-                        color: context.terminalColors.primary.withValues(
-                          alpha: 0.7,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'description_markdown',
-                        style: context.terminalText.labelLarge,
-                      ),
-                    ],
+                  const Text(
+                    'BLUEPRINT_TITLE',
+                    style: TextStyle(
+                      fontFamily: 'JetBrains Mono',
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF8B949E),
+                    ),
                   ),
                   const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _descriptionController,
-                    maxLines: 5,
-                    cursorColor: context.terminalColors.primary,
-                    style: context.terminalText.bodyMedium?.copyWith(
+                  TextField(
+                    controller: _titleController,
+                    style: const TextStyle(
                       fontFamily: 'JetBrains Mono',
                       color: Colors.white,
+                      fontSize: 14,
                     ),
-                    validator: (val) => val == null || val.trim().isEmpty
-                        ? 'Null matrix data disallowed.'
-                        : null,
                     decoration: InputDecoration(
-                      hintText:
-                          '# Project Overview\nWrite markdown schema parameters here...',
-                      hintStyle: TextStyle(
-                        color: context.terminalColors.secondary.withValues(
-                          alpha: 0.8,
-                        ),
-                        fontSize: 14,
-                      ),
                       filled: true,
                       fillColor: const Color(0xFF0D1117),
-                      contentPadding: const EdgeInsets.all(16),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: context.terminalColors.secondary,
-                        ),
+                      hintText: 'e.g., Distributed Redis Cache Wrapper',
+                      hintStyle: const TextStyle(color: Color(0xFF30363D)),
+                      border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(4),
+                        borderSide: const BorderSide(color: Color(0xFF21262D)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(4),
+                        borderSide: const BorderSide(color: Color(0xFF21262D)),
                       ),
                       focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(4),
                         borderSide: BorderSide(
                           color: context.terminalColors.primary,
                         ),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      errorBorder: OutlineInputBorder(
-                        borderSide: const BorderSide(color: Colors.redAccent),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      focusedErrorBorder: OutlineInputBorder(
-                        borderSide: const BorderSide(
-                          color: Colors.redAccent,
-                          width: 1.5,
-                        ),
-                        borderRadius: BorderRadius.circular(4),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
 
-                  TerminalTextField(
-                    label: 'target_tech_stack',
-                    prefixIcon: Icons.layers_outlined,
-                    hintText: 'Flutter, Supabase, Go, Rust',
-                    controller: _techController,
-                    validator: (val) => val == null || val.trim().isEmpty
-                        ? 'Requires terminal stack parameter tags.'
-                        : null,
+                  const Text(
+                    'TECH_STACK (comma separated)',
+                    style: TextStyle(
+                      fontFamily: 'JetBrains Mono',
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF8B949E),
+                    ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _techController,
+                    style: const TextStyle(
+                      fontFamily: 'JetBrains Mono',
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: const Color(0xFF0D1117),
+                      hintText: 'rust, webassembly, react',
+                      hintStyle: const TextStyle(color: Color(0xFF30363D)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(4),
+                        borderSide: const BorderSide(color: Color(0xFF21262D)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(4),
+                        borderSide: const BorderSide(color: Color(0xFF21262D)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(4),
+                        borderSide: BorderSide(
+                          color: context.terminalColors.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
 
-                  ExecuteButton(
-                    label: 'Deploy Spark',
-                    isLoading: _isSubmitting,
-                    onPressed: _handleSubmitNode,
+                  const Text(
+                    'ARCHITECTURE_SPECIFICATION',
+                    style: TextStyle(
+                      fontFamily: 'JetBrains Mono',
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF8B949E),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _descController,
+                    maxLines: 8,
+                    style: const TextStyle(
+                      fontFamily: 'JetBrains Mono',
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: const Color(0xFF0D1117),
+                      hintText: 'Define core layout and data structures...',
+                      hintStyle: const TextStyle(color: Color(0xFF30363D)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(4),
+                        borderSide: const BorderSide(color: Color(0xFF21262D)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(4),
+                        borderSide: const BorderSide(color: Color(0xFF21262D)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(4),
+                        borderSide: BorderSide(
+                          color: context.terminalColors.primary,
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
-          ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: context.terminalColors.primary,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                onPressed: _isPublishing ? null : _publishSpark,
+                child: _isPublishing
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.black,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text(
+                        'COMMIT_BLUEPRINT',
+                        style: TextStyle(
+                          fontFamily: 'JetBrains Mono',
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+              ),
+            ),
+          ],
         ),
       ),
     );

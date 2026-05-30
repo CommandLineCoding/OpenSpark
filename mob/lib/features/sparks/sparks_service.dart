@@ -41,4 +41,17 @@ class SparksService {
       'status': 'seed', // Automatically conforms to spark_status Enum bounds
     });
   }
+
+  /// Appends peer review packets to the community thread
+  Future<void> insertComment({
+    required String sparkId,
+    required String authorId,
+    required String content,
+  }) async {
+    await _supabase.from('spark_comments').insert({
+      'spark_id': sparkId,
+      'author_id': authorId,
+      'content': content,
+    });
+  }
 }
