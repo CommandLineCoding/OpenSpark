@@ -1,0 +1,65 @@
+name: Android Production Pipeline
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  validate_and_build:
+    name: Validate and Compile Release Engine
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./mob
+
+    steps:
+      # 1. Mount the repository workspace
+      - name: Checkout Source Tree
+        uses: actions/checkout@v4
+
+      # 2. Configure Java Environment with automated Gradle dependency caching
+      - name: Initialize Java JDK Environment
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
+
+      # 3. Initialize Flutter Framework Environment with toolchain caching
+      - name: Initialize Flutter Framework
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
+
+      # 4. Pull dependencies cleanly
+      - name: Fetch Package Dependencies
+        run: flutter pub get
+
+      # 5. Strict Code Style Formatting Scan
+      - name: Verify Code Base Formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      # 6. Strict Compiler & Linter Verification
+      - name: Static Analysis Check
+        run: flutter analyze --fatal-infos --fatal-warnings
+
+      # 7. Unit & State Pipeline Validations
+      - name: Execute Core Test Suite
+        run: flutter test
+
+      # 8. Compile Optimized Release Package
+      - name: Compile Production APK
+        run: flutter build apk --release
+
+      # 9. Isolate and Upload Finished Artifact to GitHub Actions
+      - name: Upload Compiled Production Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenSpark-Production-APK
+          path: mob/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
