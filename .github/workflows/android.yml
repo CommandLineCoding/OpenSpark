@@ -1,0 +1,57 @@
+name: Android CI/CD Production Pipeline
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  validate_and_build:
+    name: Validate and Compile Release Engine
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./mob
+
+    steps:
+      - name: Checkout Source Tree
+        uses: actions/checkout@v4
+
+      - name: Initialize Java JDK Environment
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Initialize Flutter Framework
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Fetch Package Dependencies
+        run: flutter pub get
+
+      # Relaxed Formatting: Formats code but won't fail the build
+      - name: Verify Code Base Formatting
+        run: dart format .
+
+      # Relaxed Linter: Fails on critical errors, warns on minor info/styling lints
+      - name: Static Analysis Check
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Execute Core Test Suite
+        run: flutter test
+
+      - name: Compile Production APK (Standard Release)
+        run: flutter build apk --release
+      
+      - name: Upload Compiled Production Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenSpark-v0.1.0-Beta-APK
+          path: mob/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
