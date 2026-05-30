@@ -10,6 +10,10 @@ jobs:
   build:
     name: Build & Verify Android Release
     runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./mob
 
     steps:
       - name: Checkout Repository
@@ -27,8 +31,6 @@ jobs:
         with:
           channel: 'stable'
           cache: true
-          # Optionally lock to a specific version:
-          # flutter-version: '3.19.x' 
 
       - name: Install Dependencies
         run: flutter pub get
@@ -43,13 +45,11 @@ jobs:
         run: flutter test
 
       - name: Build Android APK (Release)
-        # F-Droid requires your app to build cleanly without proprietary SDKs.
-        # Ensure no play-services dependencies leak into the F-Droid build variant if you use flavors.
         run: flutter build apk --release
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: OpenSpark-v0.1.0-Beta-APK
+          path: mob/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
