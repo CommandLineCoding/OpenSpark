@@ -153,8 +153,10 @@ class SparkCommentModel {
 final sparkCommentsStreamProvider =
     StreamProvider.family<List<SparkCommentModel>, String>((ref, sparkId) {
       final supabase = ref.watch(supabaseClientProvider);
+
+      // Changed from 'spark_comments' to 'vw_spark_comments' to fetch real usernames
       return supabase
-          .from('spark_comments')
+          .from('vw_spark_comments')
           .stream(primaryKey: ['id'])
           .eq('spark_id', sparkId)
           .order('created_at', ascending: true)
@@ -164,7 +166,9 @@ final sparkCommentsStreamProvider =
                   (data) => SparkCommentModel(
                     id: data['id'].toString(),
                     sparkId: data['spark_id'].toString(),
-                    authorName: 'peer_node',
+                    authorName:
+                        data['author_name']?.toString() ??
+                        'peer_node', // Maps real name
                     content: data['content'].toString(),
                     timeAgo: 'Just now',
                   ),
