@@ -1,3 +1,4 @@
+import 'package:OpenSpark/features/dashboard/dashboard_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../design_system/theme_extensions.dart';
@@ -15,9 +16,7 @@ class MainShell extends ConsumerWidget {
 
     final List<Widget> systemScreens = [
       const SparksFeedScreen(),
-      const _PlaceholderScreen(
-        title: '~/TERMINAL_MONITOR_DASHBOARD',
-      ), // Tab 1: Subdued Placeholder
+      const DashboardScreen(), // Tab 1: Subdued Placeholder
       const CollabScreen(),
       const ProfileScreen(),
     ];

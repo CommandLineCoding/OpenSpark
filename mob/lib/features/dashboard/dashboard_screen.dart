@@ -1,276 +1,306 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../design_system/theme_extensions.dart';
 import '../../design_system/widgets/terminal_block.dart';
-import 'spark_card.dart';
+import '../sparks/sparks_provider.dart';
+import 'terminal_provider.dart';
 
-class DashboardScreen extends StatefulWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
-  int _currentNavIndex = 0;
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  final _inputController = TextEditingController();
+  final _scrollController = ScrollController();
 
-  // Static telemetry list feed values
-  final List<SparkItem> _sparks = const [
-    SparkItem(
-      title: 'DataPipeline_v2',
-      id: 'SPK-092A',
-      tag: 'ETL',
-      timeAgo: '2m ago',
-      icon: Icons.flash_on_rounded,
-    ),
-    SparkItem(
-      title: 'Auth_Microservice',
-      id: 'SPK-088B',
-      tag: 'SEC',
-      timeAgo: '15m ago',
-      icon: Icons.lan_outlined,
-    ),
-    SparkItem(
-      title: 'Cache_Layer_Opt',
-      id: 'SPK-071C',
-      tag: 'INFRA',
-      timeAgo: '1h ago',
-      icon: Icons.layers_outlined,
-    ),
-  ];
+  @override
+  void dispose() {
+    _inputController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _submitCommand(String? activeSparkContext) {
+    final text = _inputController.text;
+    if (text.isEmpty) return;
+
+    ref
+        .read(terminalProvider.notifier)
+        .executeCommand(text, activeSparkContext: activeSparkContext);
+    _inputController.clear();
+    _scrollToBottom();
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent + 200,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final terminalHistory = ref.watch(terminalProvider);
+    final isProcessing = ref.watch(terminalProcessingProvider);
+    final sparksAsync = ref.watch(sparksFeedProvider);
+    final activeSparkContext = ref.watch(terminalSparkContextProvider);
+
+    // Auto-scroll watcher
+    ref.listen(terminalProvider, (previous, next) {
+      if (previous != null && next.length > previous.length) {
+        _scrollToBottom();
+      }
+    });
+
     return Scaffold(
       backgroundColor: context.terminalColors.neutralBg,
-
-      // Top Mainframe Header Bar
       appBar: AppBar(
         backgroundColor: context.terminalColors.neutralBg,
         elevation: 0,
         scrolledUnderElevation: 0,
-        bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(1),
-          child: Divider(color: Color(0xFF21262D), height: 1),
-        ),
         leading: IconButton(
           icon: const Icon(Icons.menu_rounded, color: Colors.white),
           onPressed: () {},
         ),
+        centerTitle: true,
         title: Text(
-          'OpenSpark',
+          'Coprocessor',
           style: TextStyle(
+            fontFamily: 'JetBrains Mono',
             color: context.terminalColors.primary,
             fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
+            fontSize: 22,
           ),
         ),
-        centerTitle: true,
-        actions: const [
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(1),
+          child: Divider(color: Color(0xFF21262D), height: 1),
+        ),
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // --- CONTEXT DROP-DOWN ---
           Padding(
-            padding: EdgeInsets.only(right: 16.0),
-            child: CircleAvatar(
-              radius: 16,
-              backgroundImage: NetworkImage(
-                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
+            padding: const EdgeInsets.all(16.0),
+            child: TerminalBlock(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: sparksAsync.when(
+                data: (sparks) {
+                  return DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: activeSparkContext,
+                      hint: const Text(
+                        'BIND TARGET BLUEPRINT CONTEXT',
+                        style: TextStyle(
+                          fontFamily: 'JetBrains Mono',
+                          color: Color(0xFF8B949E),
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      dropdownColor: const Color(0xFF0D1117),
+                      isExpanded: true,
+                      icon: const Icon(
+                        Icons.settings_input_component_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                      items: sparks.map((spark) {
+                        return DropdownMenuItem<String>(
+                          value: spark.title,
+                          child: Text(
+                            'SPK: ${spark.title.toUpperCase()}',
+                            style: const TextStyle(
+                              fontFamily: 'JetBrains Mono',
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        ref.read(terminalSparkContextProvider.notifier).state =
+                            value;
+                        if (value != null) {
+                          ref
+                              .read(terminalProvider.notifier)
+                              .injectSystemMessage(
+                                '[SYS] Context shifted to: "$value".',
+                              );
+                          _scrollToBottom();
+                        }
+                      },
+                    ),
+                  );
+                },
+                loading: () => const SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Color(0xFF39D353),
+                  ),
+                ),
+                error: (err, _) => const Text(
+                  'CONTEXT_HYDRATION_ERR',
+                  style: TextStyle(
+                    fontFamily: 'JetBrains Mono',
+                    color: Colors.redAccent,
+                  ),
+                ),
               ),
             ),
           ),
-        ],
-      ),
 
-      // Scrollable Monitoring Feed Area
-      body: ListView(
-        padding: const EdgeInsets.all(20.0),
-        children: [
-          // Upper Metrics Telemetry Box
-          TerminalBlock(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Latest Sparks',
-                      style: context.terminalText.headlineMedium?.copyWith(
-                        fontSize: 24,
+          // --- TERMINAL OUTPUT WINDOW ---
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: const Color(0xFF000B0E),
+                border: Border.all(color: const Color(0xFF21262D)),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              padding: const EdgeInsets.all(12),
+              child: ListView.builder(
+                controller: _scrollController,
+                itemCount: terminalHistory.length,
+                itemBuilder: (context, index) {
+                  final line = terminalHistory[index];
+
+                  if (line.role == TerminalRole.user) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: RichText(
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: '${line.timestamp} ',
+                              style: const TextStyle(
+                                fontFamily: 'JetBrains Mono',
+                                color: Color(0xFF8B949E),
+                                fontSize: 12,
+                              ),
+                            ),
+                            const TextSpan(
+                              text: 'operator@node:~\$ ',
+                              style: TextStyle(
+                                fontFamily: 'JetBrains Mono',
+                                color: Color(0xFF39D353),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                            TextSpan(
+                              text: line.text,
+                              style: const TextStyle(
+                                fontFamily: 'JetBrains Mono',
+                                color: Colors.white,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    Row(
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: context.terminalColors.primary,
-                            shape: BoxShape.circle,
-                          ),
+                    );
+                  } else {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12.0),
+                      child: Text(
+                        line.text,
+                        style: TextStyle(
+                          fontFamily: 'JetBrains Mono',
+                          fontSize: 13,
+                          color: line.role == TerminalRole.coprocessor
+                              ? const Color(0xFFFFBD2E)
+                              : const Color(0xFFC9D1D9),
+                          height: 1.4,
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'SYS_ONLINE',
-                          style: context.terminalText.labelLarge?.copyWith(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                      ),
+                    );
+                  }
+                },
+              ),
+            ),
+          ),
+
+          if (isProcessing)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Text(
+                '● COPROCESSOR_COMPUTING_TOKENS...',
+                style: TextStyle(
+                  fontFamily: 'JetBrains Mono',
+                  color: Color(0xFFFFBD2E),
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildMetricTile(
-                        context,
-                        label: 'ACTIVE_NODES',
-                        value: '124',
-                        valueColor: context.terminalColors.primary,
-                      ),
+              ),
+            ),
+
+          // --- INPUT LINE ---
+          Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D1117),
+              border: Border.all(color: const Color(0xFF30363D)),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                Text(
+                  '\$ ',
+                  style: TextStyle(
+                    fontFamily: 'JetBrains Mono',
+                    color: context.terminalColors.primary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _inputController,
+                    onSubmitted: (_) => _submitCommand(activeSparkContext),
+                    style: const TextStyle(
+                      fontFamily: 'JetBrains Mono',
+                      color: Colors.white,
+                      fontSize: 14,
                     ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: _buildMetricTile(
-                        context,
-                        label: 'ERRORS',
-                        value: '0',
-                        valueColor: const Color(0xFFFF5F56),
+                    cursorColor: context.terminalColors.primary,
+                    decoration: const InputDecoration(
+                      hintText: 'Enter command string...',
+                      hintStyle: TextStyle(
+                        color: Color(0xFF8B949E),
+                        fontSize: 13,
                       ),
+                      border: InputBorder.none,
                     ),
-                  ],
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(
+                    Icons.keyboard_return_rounded,
+                    color: context.terminalColors.primary,
+                    size: 18,
+                  ),
+                  onPressed: () => _submitCommand(activeSparkContext),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
-
-          // Stream Sparks List View
-          ..._sparks.map(
-            (spark) => SparkCard(
-              item: spark,
-              onInspect: () {
-                // Handle inspection terminal execution routine
-              },
-            ),
-          ),
         ],
-      ),
-
-      // Sleek Terminal System Bottom Navigation Bar
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: Color(0xFF21262D), width: 1)),
-          color: Color(0xFF001117),
-        ),
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        child: SafeArea(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(
-                0,
-                label: 'Blueprints',
-                icon: Icons.architecture_rounded,
-              ),
-              _buildNavItem(1, label: 'Terminal', icon: Icons.terminal_rounded),
-              _buildNavItem(
-                2,
-                label: 'Collab',
-                icon: Icons.people_outline_rounded,
-              ),
-              _buildNavItem(
-                3,
-                label: 'Profile',
-                icon: Icons.account_circle_outlined,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMetricTile(
-    BuildContext context, {
-    required String label,
-    required String value,
-    required Color valueColor,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0D1117),
-        border: Border.all(
-          color: context.terminalColors.secondary.withValues(alpha: 0.5),
-        ),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: context.terminalText.labelLarge?.copyWith(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: TextStyle(
-              fontFamily: 'JetBrains Mono',
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: valueColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavItem(
-    int index, {
-    required String label,
-    required IconData icon,
-  }) {
-    final isSelected = _currentNavIndex == index;
-    return GestureDetector(
-      onTap: () => setState(() => _currentNavIndex = index),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? context.terminalColors.primary
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected
-                  ? Colors.black
-                  : context.terminalColors.secondary,
-              size: 22,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: context.terminalText.labelLarge?.copyWith(
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected
-                    ? Colors.black
-                    : context.terminalColors.secondary,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
